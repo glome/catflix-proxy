@@ -27,11 +27,16 @@ corsOptions = exposedHeaders:  'x-token, x-token-exp'
 app.options('/*', cors(corsOptions))
 
 app.use '/', proxy(config.host,
+  forwardPath: (req, res) ->
+    # this option is only for
+    # logging purposes
+    path = require('url').parse(req.url).path
+    console.log "#{req.method}: #{path}"
+
+    return path
+
+
   intercept: (data, req, res, callback) ->
-    console.log '---- intercept ---'
-
-    console.log res.constructor.name
-
     res.setHeader("access-control-expose-headers", "x-token, X-CSRF-Token, x-token-exp")
     # callback = function(err, json)
     csrf      = res.getHeader('x-csrf-token')
