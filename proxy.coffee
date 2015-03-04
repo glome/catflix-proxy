@@ -1,5 +1,7 @@
 proxy = require('express-http-proxy')
 cookie = require('cookie')
+cors = require('cors')
+dateFormat = require('dateformat')
 app = require('express')()
 port = 8765
 config = require('./config.json')
@@ -11,43 +13,53 @@ addParameters = (bodyContent, application) ->
     content = bodyContent.toString('utf8')
     result = "#{content}&#{result}"
 
-  console.log result
   return result
 
 
-app.use '/', proxy(config.host,
-  forwardPath: (req, res) ->
-    console.log 'forwardPath'
-    require('url').parse(req.url).path
+app.use((req, res, next) ->
+  now = Date.now()
+  console.log dateFormat(now, "dddd, mmmm dS, yyyy, h:MM:ss TT")
+  next()
+)
 
+# preflight options
+corsOptions = exposedHeaders:  'x-token, x-token-exp'
+app.options('/*', cors(corsOptions))
+
+app.use '/', proxy(config.host,
   intercept: (data, req, res, callback) ->
-    console.log 'intercept'
+    console.log '---- intercept ---'
+
+    console.log res.constructor.name
+
+    res.setHeader("access-control-expose-headers", "x-token, X-CSRF-Token, x-token-exp")
     # callback = function(err, json)
-    csrf = res.getHeader('x-csrf-token')
+    csrf      = res.getHeader('x-csrf-token')
     setCookie = res.getHeader('set-cookie')
 
     if setCookie
       cookieValues = cookie.parse(setCookie.toString())
-      token = cookieValues['_session_id']
+      token        = cookieValues['_session_id']
       token_expire = cookieValues['expires']
+      res.setHeader("x-token", token)
+      res.setHeader("x-token-exp", token_expire)
+      res.removeHeader("set-cookie");
 
-      res.append 'token', token if token
-      res.append 'token-exp', token_expire if token_expire
-
-    # add expose headers
-    res.setHeader 'Access-Control-Expose-Headers', 'X-CSRF-Token, token, token-exp'
     callback null, data
+
     return
 
-  decorateRequest: (req) ->
-    console.log 'decorateRequest'
-    if req.headers['token']
-      cookieHeader = '_session_id=' + req.headers['token']
-      req.headers['Cookie'] = cookieHeader
-      delete req.headers['token']
-    console.log req.headers
-    req.bodyContent = addParameters(req.bodyContent, config.application)
-    return req
+  decorateRequest: (reqOpt ) ->
+    if reqOpt.headers['x-token']
+      console.log "Add cookie"
+      cookieHeader = '_session_id=' + reqOpt.headers['x-token']
+      reqOpt.headers['Cookie'] = cookieHeader
+
+    reqOpt.bodyContent = addParameters(reqOpt.bodyContent, config.application)
+
+    return reqOpt
 )
+
 app.listen port
+
 console.log 'Started listening ' + port
