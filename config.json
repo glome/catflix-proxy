@@ -3,5 +3,9 @@
     "apikey": "135ee5bb341e126435b5ef4804cb131e",
     "uid": "a1.glome.me"
   },
-  "host": "https://api.glome.me"
+  "host": "https://api.glome.me",
+  "proxy": {
+    "host" : "192.168.50.50",
+    "port" : "8765"
+  }
 }

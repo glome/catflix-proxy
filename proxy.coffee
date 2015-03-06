@@ -6,12 +6,16 @@ app = require('express')()
 port = 8765
 config = require('./config.json')
 
-addParameters = (bodyContent, application) ->
+addParameters = (bodyContent, application, method) ->
   result = "application[apikey]=#{application.apikey}&application[uid]=#{application.uid}"
 
+  console.log "bodyContent"
+  console.log bodyContent.toString('utf8')
   if bodyContent
     content = bodyContent.toString('utf8')
-    result = "#{content}&#{result}"
+    result = encodeURI("#{content}&#{result}")
+
+
 
   return result
 
@@ -56,15 +60,50 @@ app.use '/', proxy(config.host,
 
   decorateRequest: (reqOpt ) ->
     if reqOpt.headers['x-token']
-      console.log "Add cookie"
       cookieHeader = '_session_id=' + reqOpt.headers['x-token']
       reqOpt.headers['Cookie'] = cookieHeader
 
-    reqOpt.bodyContent = addParameters(reqOpt.bodyContent, config.application)
+    app = config.application
+    params = "application[apikey]=#{app.apikey}&application[uid]=#{app.uid}"
+
+    if reqOpt.method is 'GET'
+      path = reqOpt.path
+
+      if path.match(/\?/)
+        path = "#{path}&"
+      else
+        path = "#{path}?"
+
+      reqOpt.path = encodeURI "#{path}#{params}"
+
+    else # post,put etc
+      content = reqOpt.bodyContent.toString('utf8')
+      reqOpt.bodyContent = "#{content}&#{params}"
+
+    # hostname: (typeof host == 'function') ? host(req) : host.toString(),
+    # port: port,
+    # headers: hds,
+    # method: req.method,
+    # path: path,
+    # bodyContent: bodyContent
+
+    logCurl = true
+
+    if logCurl
+      head = new String
+
+      for key, value of reqOpt.headers
+        head = head + "#{key}: #{value},"
+
+      head = head.substring(0, head.length - 1) if head.length > 0
+
+      console.log "curl https://#{reqOpt.hostname}#{reqOpt.path} -X #{reqOpt.method} --data '#{reqOpt.bodyContent}' -H \"#{head}\""
 
     return reqOpt
 )
 
-app.listen port
+port = config.proxy.port
 
-console.log 'Started listening ' + port
+app.listen(port, config.proxy.host, ->
+  console.log "Started listening #{port}"
+)
