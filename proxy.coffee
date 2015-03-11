@@ -32,7 +32,7 @@ corsOptions = exposedHeaders:  'x-token, x-token-exp'
 
 app.options('/*', (req, res) ->
   logger.info("#{req.method}")
-  cors(corsOptions)
+  cors(corsOptions)(req,res)
 )
 # end preflight
 
