@@ -5,37 +5,44 @@ dateFormat = require('dateformat')
 app = require('express')()
 port = 8765
 config = require('./config.json')
+winston = require('winston')
+
+# Create logfile
+logger = new (winston.Logger)(
+  transports: [
+    new (winston.transports.Console)(level: 'info')
+    new (winston.transports.File)(
+      filename : config.logfile
+      level    : 'debug'
+    )
+  ]
+)
 
 addParameters = (bodyContent, application, method) ->
   result = "application[apikey]=#{application.apikey}&application[uid]=#{application.uid}"
 
-  console.log "bodyContent"
-  console.log bodyContent.toString('utf8')
   if bodyContent
     content = bodyContent.toString('utf8')
     result = encodeURI("#{content}&#{result}")
 
-
-
   return result
-
-
-app.use((req, res, next) ->
-  now = Date.now()
-  console.log dateFormat(now, "dddd, mmmm dS, yyyy, h:MM:ss TT")
-  next()
-)
 
 # preflight options
 corsOptions = exposedHeaders:  'x-token, x-token-exp'
-app.options('/*', cors(corsOptions))
+
+app.options('/*', (req, res) ->
+  logger.info("#{req.method}")
+  cors(corsOptions)
+)
+# end preflight
 
 app.use '/', proxy(config.host,
   forwardPath: (req, res) ->
     # this option is only for
     # logging purposes
     path = require('url').parse(req.url).path
-    console.log "#{req.method}: #{path}"
+
+    logger.info("#{req.method}: #{path}")
 
     return path
 
@@ -96,10 +103,20 @@ app.use '/', proxy(config.host,
         head = head + "#{key}: #{value},"
 
       head = head.substring(0, head.length - 1) if head.length > 0
+      curlStr = "curl https://#{reqOpt.hostname}#{reqOpt.path} -X #{reqOpt.method} --data '#{reqOpt.bodyContent}' -H \"#{head}\""
+      logger.log('debug',curlStr);
 
-      console.log "curl https://#{reqOpt.hostname}#{reqOpt.path} -X #{reqOpt.method} --data '#{reqOpt.bodyContent}' -H \"#{head}\""
 
     return reqOpt
+)
+# error handling
+app.use((err, req, res, next) ->
+  console.error(err.stack);
+  res.status(500).send('Something broke!');
+)
+
+process.on('uncaughtException', (err) ->
+  logger.error(err)
 )
 
 port = config.proxy.port
