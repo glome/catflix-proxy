@@ -5,7 +5,7 @@
 Change config.json to your taste.
 
 ```
-> npm install -g coffeescript
+> npm install -g coffee-script
 > npm install
 > coffee proxy
 ```
